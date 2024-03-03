@@ -1,7 +1,9 @@
 use std::fmt;
+use std::collections::HashMap;
 use std::net::{AddrParseError, IpAddr};
 use std::process::exit;
 use std::time::Duration;
+use std::thread;
 
 use rand::random;
 use ping::{ping, Error as PingError};
@@ -61,13 +63,26 @@ fn ping_ip(ip_str: &str) -> Result<(), PingCheckError> {
 
 
 fn main() {
-    println!("Hello, world!");
+    println!("Checking internet connection...");
 
+    let mut handles = HashMap::new();
     for ip_str in IP_LIST {
-        if let Err(e) = ping_ip(ip_str) {
-            eprintln!("{ip_str} is not responding! {e}");
-            exit(EXIT_CODE_ERR);
+        handles.insert(
+            ip_str.to_string(),
+            thread::spawn(|| {ping_ip(ip_str)})
+        );
+    }
+
+    for (ip_str, handle) in handles {
+        match handle.join() {
+            Ok(result) => match result {
+                Ok(()) => println!("{ip_str} is up"),
+                Err(err) => eprintln!("{ip_str} is not responding! {err}"),
+            },
+            Err(_) => {
+                eprintln!("Could not send ping to {ip_str}: Thread error");
+                exit(EXIT_CODE_ERR);
+            }
         }
-        println!("{ip_str} is up")
     }
 }
